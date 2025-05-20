@@ -34,7 +34,6 @@ class Work(QMainWindow):
         self.setWindowTitle("Money Manager")
         self.setGeometry(500, 200, 400, 730)
 
-        # Central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
@@ -62,7 +61,7 @@ class Work(QMainWindow):
         bal_layout.addWidget(lbl_balance_amt)
         main_layout.addWidget(balance_card)
 
-        # Cards for Income/Expense/Other
+
         summary_cards = QHBoxLayout()
         summary_cards.setSpacing(12)
         card_data = [
@@ -77,7 +76,6 @@ class Work(QMainWindow):
             summary_cards.addWidget(card)
         main_layout.addLayout(summary_cards)
 
-        # Stacked views for main pages (Home, Transactions, Stats, Settings, etc.)
         self.stacked_layout = QStackedLayout()
         for page_name in ["Home", "Transactions", "Stats", "Settings"]:
             page = QWidget()
@@ -107,29 +105,26 @@ class Work(QMainWindow):
         """)
         btn_add.setFixedSize(60, 60)
         btn_add.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        # Place the button with a floating effect (absolute position)
         float_btn_layout = QHBoxLayout()
         float_btn_layout.addStretch()
         float_btn_layout.addWidget(btn_add)
         float_btn_layout.addStretch()
         main_layout.addLayout(float_btn_layout)
 
-        # Spacer to push bottom nav down
         main_layout.addSpacing(12)
 
-        # Bottom Navigation Bar
         nav_layout = QHBoxLayout()
         nav_layout.setSpacing(0)
         nav_buttons = [
             ("Home", "🏠"),
             ("Transactions", "💳"),
-            ("Add", ""),  # Empty for floating add button
+            ("Add", ""),
             ("Stats", "📊"),
             ("Settings", "⚙️")
         ]
         for idx, (name, icon) in enumerate(nav_buttons):
             if name == "Add":
-                nav_layout.addSpacing(70)  # Space for floating button
+                nav_layout.addSpacing(70)
                 continue
             btn = QPushButton(icon)
             btn.setFixedHeight(40)
