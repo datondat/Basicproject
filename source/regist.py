@@ -91,8 +91,10 @@ class RegisterForm(QMainWindow):
         layout.addWidget(self.submit, alignment=Qt.AlignmentFlag.AlignHCenter)
         self.submit.clicked.connect(self.working_frame)
 
+
         self.setCentralWidget(cw)
 
     def working_frame(self):
         self.working_frame = Work()
         self.working_frame.show()
+        self.close()
