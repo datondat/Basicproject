@@ -122,9 +122,9 @@ class Work(QMainWindow):
         self.btn_home.clicked.connect(self.on_home_clicked)
         self.nav_bar.addWidget(self.btn_home)
 
-        self.btn_trans = QPushButton("💳")
-        self.btn_trans.setFixedSize(44, 44)
-        self.btn_trans.setStyleSheet("""
+        self.btn_stats = QPushButton("📊")
+        self.btn_stats.setFixedSize(44, 44)
+        self.btn_stats.setStyleSheet("""
             QPushButton {
                 border-radius: 14px;
                 border: 2px solid #36d1c4;
@@ -132,8 +132,8 @@ class Work(QMainWindow):
                 font-size: 22px;
             }
         """)
-        self.btn_trans.clicked.connect(self.on_transactions_clicked)
-        self.nav_bar.addWidget(self.btn_trans)
+        self.btn_stats.clicked.connect(self.on_stats_clicked)
+        self.nav_bar.addWidget(self.btn_stats)
 
         self.btn_add = QPushButton("+")
         self.btn_add.setFixedSize(56, 56)
@@ -153,9 +153,9 @@ class Work(QMainWindow):
         self.btn_add.clicked.connect(self.add_summary_card)
         self.nav_bar.addWidget(self.btn_add)
 
-        self.btn_stats = QPushButton("📊")
-        self.btn_stats.setFixedSize(44, 44)
-        self.btn_stats.setStyleSheet("""
+        self.btn_graph = QPushButton("📈")
+        self.btn_graph.setFixedSize(44, 44)
+        self.btn_graph.setStyleSheet("""
             QPushButton {
                 border-radius: 14px;
                 border: 2px solid #36d1c4;
@@ -163,8 +163,8 @@ class Work(QMainWindow):
                 font-size: 22px;
             }
         """)
-        self.btn_stats.clicked.connect(self.on_stats_clicked)
-        self.nav_bar.addWidget(self.btn_stats)
+        self.btn_graph.clicked.connect(self.on_graph_clicked)
+        self.nav_bar.addWidget(self.btn_graph)
 
         self.btn_settings = QPushButton("⚙️")
         self.btn_settings.setFixedSize(44, 44)
@@ -259,13 +259,13 @@ class Work(QMainWindow):
     def on_home_clicked(self):
         self.show_home()
 
-    def on_transactions_clicked(self):
-        self.clear_content()
-        self.show_section_label("Transactions")
-
     def on_stats_clicked(self):
         self.clear_content()
         self.show_section_label("Stats")
+
+    def on_graph_clicked(self):
+        self.clear_content()
+        self.show_section_label("Graph")
 
     def on_settings_clicked(self):
         self.clear_content()
