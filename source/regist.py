@@ -1,10 +1,11 @@
 import sys
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QLabel, QWidget, QVBoxLayout,
-    QLineEdit, QPushButton, QHBoxLayout, QCheckBox
+    QLineEdit, QPushButton, QHBoxLayout, QCheckBox, QMessageBox
 )
 from PySide6.QtCore import Qt,Signal
 from work import Work
+from consql import DatabaseConnector
 
 class Register(QMainWindow):
     ok_clicked = Signal()
@@ -73,6 +74,10 @@ class RegisterForm(QMainWindow):
         self.name.setPlaceholderText("Full name")
         layout.addWidget(self.name)
 
+        self.email = QLineEdit()
+        self.email.setPlaceholderText("Gmail")
+        layout.addWidget(self.email)
+
         self.user = QLineEdit()
         self.user.setPlaceholderText("User name")
         layout.addWidget(self.user)
@@ -82,18 +87,20 @@ class RegisterForm(QMainWindow):
         self.pwd.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.pwd)
 
-        self.email = QLineEdit()
-        self.email.setPlaceholderText("Gmail")
-        layout.addWidget(self.email)
-
         self.submit=QPushButton("Sign up")
         self.submit.setFixedSize(100, 20)
         layout.addWidget(self.submit, alignment=Qt.AlignmentFlag.AlignHCenter)
-        self.submit.clicked.connect(self.working_frame)
-
+        self.submit.clicked.connect(self.first)
 
         self.setCentralWidget(cw)
 
+    def first(self):
+        fullname=self.name.text()
+        mail=self.email.text()
+        username = self.user.text()
+        password = self.pwd.text()
+        if DatabaseConnector().addus(fullname,mail,username,password):
+            QMessageBox.information(self, "Sign in Successful", f"Welcome, {username}!")
     def working_frame(self):
         self.working_frame = Work()
         self.working_frame.show()

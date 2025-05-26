@@ -1,11 +1,13 @@
 import sys
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QLabel, QWidget, QVBoxLayout,
-    QLineEdit, QPushButton, QHBoxLayout, QCheckBox
+    QLineEdit, QPushButton, QHBoxLayout, QCheckBox, QMessageBox
 )
 from regist import Register
 from PySide6.QtCore import Qt
 from regist import RegisterForm
+from consql import DatabaseConnector
+from work import Work
 
 class Log_in(QMainWindow):
     def __init__(self):
@@ -62,11 +64,21 @@ class Log_in(QMainWindow):
         else:
             self.password.setEchoMode(QLineEdit.EchoMode.Password)
     def handle_login(self):
-        self.regist_window=Register()
-        self.regist_window.ok_clicked.connect(self.show)
-        self.regist_window.signup_clicked.connect(self.open_register_form)
-        self.regist_window.show()
-        self.hide()
+        username = self.username.text()
+        password = self.password.text()
+        db = DatabaseConnector(database='basic_project')
+        success = db.check(username, password)
+        if success:
+            QMessageBox.information(self, "Login Successful", f"Welcome, {username}!")
+            self.workingframe=Work()
+            self.workingframe.show()
+            self.hide()
+        else:
+            self.regist_window=Register()
+            self.regist_window.ok_clicked.connect(self.show)
+            self.regist_window.signup_clicked.connect(self.open_register_form)
+            self.regist_window.show()
+            self.hide()
 
     def open_register_form(self):
         self.register_form = RegisterForm()
