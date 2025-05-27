@@ -38,3 +38,8 @@ class DatabaseConnector:
             self.cursor.close()
             self.conn.close()
         return success
+
+    def get_user_id(self, username):
+        self.cursor.execute("SELECT id FROM users WHERE logname = %s", (username,))
+        result = self.cursor.fetchone()
+        return result[0] if result else None

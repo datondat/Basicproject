@@ -1,8 +1,12 @@
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QLabel, QWidget, QVBoxLayout,
-    QPushButton, QHBoxLayout, QFrame, QSizePolicy, QScrollArea
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel, QPushButton,
+    QFrame, QSizePolicy, QMessageBox
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
+from card_dialog import AddCardDialog
+from consql import DatabaseConnector
+from PySide6.QtWidgets import QDialog
+from MarqueeLabel import MarqueeLabel
 
 class SummaryCard(QFrame):
     def __init__(self, title, amount, color):
@@ -18,19 +22,23 @@ class SummaryCard(QFrame):
         layout = QVBoxLayout(self)
         lbl_title = QLabel(title)
         lbl_title.setStyleSheet("font-size: 14px; color: #fff;")
-        lbl_amount = QLabel(amount)
-        lbl_amount.setStyleSheet("font-size: 20px; font-weight: bold; color: #fff;")
         layout.addWidget(lbl_title)
+        lbl_amount = MarqueeLabel(amount)
         layout.addWidget(lbl_amount)
 
-class TopSummaryWidget(QWidget):
-    def __init__(self):
+class MonthSummaryWidget(QWidget):
+    def __init__(self, month_label, card_totals):
         super().__init__()
         top_layout = QVBoxLayout(self)
         top_layout.setSpacing(10)
         top_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Balance widget
+        lbl_month = QLabel(month_label)
+        lbl_month.setStyleSheet("font-size: 20px; color: #36d1c4; font-weight: bold;")
+        lbl_month.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        top_layout.addWidget(lbl_month)
+
+        # Balance card at the top
         self.balance_widget = QFrame()
         self.balance_widget.setStyleSheet("""
             QFrame {
@@ -43,20 +51,20 @@ class TopSummaryWidget(QWidget):
         balance_layout.setSpacing(6)
         lbl_balance_title = QLabel("Total Balance")
         lbl_balance_title.setStyleSheet("font-size: 20px; color: #fff;")
-        lbl_balance_amount = QLabel("$2,340.00")
+        lbl_balance_amount = QLabel(f"{card_totals['balance']:,.0f} VND")
         lbl_balance_amount.setStyleSheet("font-size: 36px; color: #fff; font-weight: bold;")
         balance_layout.addWidget(lbl_balance_title)
         balance_layout.addWidget(lbl_balance_amount)
         top_layout.addWidget(self.balance_widget)
 
-        # Summary cards row
+        # 3 cards row (Income, Expense, Other)
         row_widget = QWidget()
         row_layout = QHBoxLayout(row_widget)
         row_layout.setSpacing(12)
         card_data = [
-            ("Income", "+ $3,000", "#64b6f7"),
-            ("Expense", "- $660", "#f66d6d"),
-            ("Other", "$0", "#f2c94c"),
+            ("Income", f"+ {card_totals['Income']:,.0f} VND", "#64b6f7"),
+            ("Expense", f"- {card_totals['Expense']:,.0f} VND", "#f66d6d"),
+            ("Other", f"{card_totals['Other']:,.0f} VND", "#f2c94c"),
         ]
         for title, amount, color in card_data:
             card = SummaryCard(title, amount, color)
@@ -85,26 +93,24 @@ class SummaryCardButton(QPushButton):
         """)
 
 class Work(QMainWindow):
-    def __init__(self):
+    def __init__(self, user_id):
         super().__init__()
+        self.user_id = user_id
         self.setWindowTitle("Money Manager")
         self.resize(380, 700)
 
-        # Central widget with main vertical layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         self.outer_layout = QVBoxLayout(central_widget)
         self.outer_layout.setContentsMargins(0, 0, 0, 0)
         self.outer_layout.setSpacing(0)
 
-        # ----- Content area -----
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(16, 16, 16, 16)
         self.content_layout.setSpacing(10)
         self.outer_layout.addWidget(self.content_widget, 1)
 
-        # ----- Navigation Bar -----
         self.nav_bar = QHBoxLayout()
         self.nav_bar.setSpacing(10)
         self.nav_bar.setContentsMargins(0, 10, 0, 10)
@@ -182,19 +188,16 @@ class Work(QMainWindow):
         self.nav_bar.insertStretch(0, 1)
         self.nav_bar.addStretch(1)
 
-        # Add nav bar at the bottom
         nav_bar_widget = QWidget()
         nav_bar_widget.setLayout(self.nav_bar)
         self.outer_layout.addWidget(nav_bar_widget, 0)
 
-        # State for restoring Home
         self.home_widgets = []
         self.home_cards = []
 
         self.show_home()
 
     def clear_content(self):
-        # Remove all widgets from content_layout (except for persistent nav bar)
         while self.content_layout.count():
             item = self.content_layout.takeAt(0)
             widget = item.widget()
@@ -210,51 +213,120 @@ class Work(QMainWindow):
                         child.widget().deleteLater()
                 del layout
 
+    def get_monthly_summary(self):
+        db = DatabaseConnector()
+        monthly = {}
+        try:
+            # Use concatenated string, not triple quotes (avoid indentation/space issues)
+            sql = (
+                "SELECT DATE_FORMAT(dates, '%Y-%m') AS year_month, type, SUM(money) "
+                "FROM ngay "
+                "WHERE user_id = %s "
+                "GROUP BY DATE_FORMAT(dates, '%Y-%m'), type "
+                "ORDER BY DATE_FORMAT(dates, '%Y-%m') DESC"
+            )
+            db.cursor.execute(sql, (self.user_id,))
+            rows = db.cursor.fetchall()
+        finally:
+            db.close()
+
+        for ym, typ, total in rows:
+            if ym not in monthly:
+                monthly[ym] = {'Income': 0, 'Expense': 0, 'Other': 0}
+            monthly[ym][typ] = total
+
+        for ym, vals in monthly.items():
+            balance = vals.get('Income', 0) + vals.get('Other', 0) - vals.get('Expense', 0)
+            vals['balance'] = balance
+
+        return monthly
+
     def show_home(self):
         self.clear_content()
         self.home_widgets = []
-        # Top summary always on top
-        self.top_summary = TopSummaryWidget()
-        self.content_layout.addWidget(self.top_summary)
-        self.home_widgets.append(self.top_summary)
 
-        # Scroll Area for summary cards (added with "+")
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.summary_scroll_content = QWidget()
-        self.summary_container = QVBoxLayout(self.summary_scroll_content)
-        self.summary_container.setSpacing(12)
-        self.scroll_area.setWidget(self.summary_scroll_content)
-        self.content_layout.addWidget(self.scroll_area, 1)
-        self.home_widgets.append(self.scroll_area)
+        # Get monthly card values from SQL
+        monthly = self.get_monthly_summary()
+        for ym, card_totals in monthly.items():
+            month_label = ym
+            month_widget = MonthSummaryWidget(month_label, card_totals)
+            self.content_layout.addWidget(month_widget)
+            self.home_widgets.append(month_widget)
 
-        # Restore cards if present
-        for btn in self.home_cards:
-            self.summary_container.addWidget(btn)
+            # Transactions for this month
+            scroll_area = QScrollArea()
+            scroll_area.setWidgetResizable(True)
+            scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            summary_scroll_content = QWidget()
+            summary_scroll_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+            summary_container = QVBoxLayout(summary_scroll_content)
+            summary_container.setSpacing(12)
+            summary_container.setAlignment(Qt.AlignmentFlag.AlignTop)
+            scroll_area.setWidget(summary_scroll_content)
+            self.content_layout.addWidget(scroll_area, 1)
+            self.home_widgets.append(scroll_area)
 
-        # Home label/content (at bottom)
-        content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.addStretch()
-        lbl_home = QLabel("Home")
-        lbl_home.setAlignment(Qt.AlignHCenter)
-        lbl_home.setStyleSheet("font-size: 28px; color: #36d1c4; font-weight: bold;")
-        content_layout.addWidget(lbl_home)
-        content_layout.addStretch()
-        self.content_layout.addWidget(content_widget)
-        self.home_widgets.append(content_widget)
+            db = DatabaseConnector()
+            try:
+                sql = (
+                    "SELECT title, money, dates, type FROM ngay "
+                    "WHERE user_id = %s AND DATE_FORMAT(dates, '%Y-%m') = %s "
+                    "ORDER BY dates DESC, id DESC"
+                )
+                db.cursor.execute(sql, (self.user_id, ym))
+                cards = db.cursor.fetchall()
+            finally:
+                db.close()
+
+            color_map = {
+                "Income": "#64b6f7",
+                "Expense": "#f66d6d",
+                "Other": "#f2c94c",
+            }
+            for title, money, date_str, card_type in cards:
+                color = color_map.get(card_type, "#36d1c4")
+                btn = SummaryCardButton(f"{title} ({date_str})", f"{money:,.0f} VND", color)
+                btn.clicked.connect(lambda checked, t=title: self.show_message(f"{t} card clicked!"))
+                scroll_width = scroll_area.viewport().width()
+                left_margin, _, right_margin, _ = self.content_layout.getContentsMargins()
+                card_width = max(scroll_width - left_margin - right_margin, 100)
+                btn.setFixedWidth(card_width)
+                summary_container.addWidget(btn)
+
+        QTimer.singleShot(0, self.resize_all_cards)
 
     def add_summary_card(self):
-        # Only add if summary_container exists (home is showing)
-        if hasattr(self, "summary_container"):
-            scroll_width = self.scroll_area.viewport().width() if hasattr(self, "scroll_area") else self.width()
-            left_margin, _, right_margin, _ = self.content_layout.getContentsMargins()
-            card_width = max(scroll_width - left_margin - right_margin, 100)
-            btn = SummaryCardButton("New Card", "$0", "#36d1c4")
-            btn.setFixedWidth(card_width)
-            btn.clicked.connect(lambda: self.show_message("Card button clicked!"))
-            self.summary_container.addWidget(btn)
-            self.home_cards.append(btn)
+        dialog = AddCardDialog(self)
+        if dialog.exec() == QDialog.Accepted:
+            title, amount, card_type, date_str = dialog.get_values()
+            try:
+                float_amount = float(amount.replace(",", "").replace("$", ""))
+            except ValueError:
+                QMessageBox.warning(self, "Input Error", "Amount must be a number.")
+                return
+
+            color_map = {
+                "Income": "#64b6f7",
+                "Expense": "#f66d6d",
+                "Other": "#f2c94c",
+            }
+            color = color_map.get(card_type, "#36d1c4")
+
+            db = DatabaseConnector()
+            try:
+                db.cursor.execute(
+                    "INSERT INTO ngay (user_id, title, dates, money, type) VALUES (%s, %s, %s, %s, %s)",
+                    (self.user_id, title, date_str, float_amount, card_type)
+                )
+                db.conn.commit()
+            except Exception as e:
+                QMessageBox.critical(self, "Database Error", f"Could not save card: {e}")
+                db.close()
+                return
+            db.close()
+
+            # Refresh the home screen to update totals and cards
+            self.show_home()
 
     def on_home_clicked(self):
         self.show_home()
@@ -276,7 +348,7 @@ class Work(QMainWindow):
         layout = QVBoxLayout(section_widget)
         layout.addStretch()
         label = QLabel(f"{name} Section")
-        label.setAlignment(Qt.AlignCenter)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setStyleSheet("font-size: 28px; color: #36d1c4; font-weight: bold;")
         layout.addWidget(label)
         layout.addStretch()
@@ -286,12 +358,21 @@ class Work(QMainWindow):
         self.setWindowTitle(message)
 
     def resizeEvent(self, event):
-        if hasattr(self, 'summary_container'):
-            scroll_width = self.scroll_area.viewport().width() if hasattr(self, "scroll_area") else self.width()
-            left_margin, _, right_margin, _ = self.content_layout.getContentsMargins()
-            card_width = max(scroll_width - left_margin - right_margin, 100)
-            for i in range(self.summary_container.count()):
-                w = self.summary_container.itemAt(i).widget()
-                if isinstance(w, SummaryCardButton):
-                    w.setFixedWidth(card_width)
+        self.resize_all_cards()
         super().resizeEvent(event)
+
+    def resize_all_cards(self):
+        # This will resize all SummaryCardButton widgets in all summary_containers
+        for i in range(self.content_layout.count()):
+            widget = self.content_layout.itemAt(i).widget()
+            if isinstance(widget, QScrollArea):
+                scroll_width = widget.viewport().width()
+                left_margin, _, right_margin, _ = self.content_layout.getContentsMargins()
+                card_width = max(scroll_width - left_margin - right_margin, 100)
+                scroll_content = widget.widget()
+                if scroll_content and isinstance(scroll_content.layout(), QVBoxLayout):
+                    layout = scroll_content.layout()
+                    for j in range(layout.count()):
+                        w = layout.itemAt(j).widget()
+                        if isinstance(w, SummaryCardButton):
+                            w.setFixedWidth(card_width)

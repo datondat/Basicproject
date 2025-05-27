@@ -70,7 +70,9 @@ class Log_in(QMainWindow):
         success = db.check(username, password)
         if success:
             QMessageBox.information(self, "Login Successful", f"Welcome, {username}!")
-            self.workingframe=Work()
+            db = DatabaseConnector()
+            user_id = db.get_user_id(username)
+            self.workingframe=Work(user_id)
             self.workingframe.show()
             self.hide()
         else:
