@@ -1,11 +1,10 @@
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel, QPushButton,
-    QFrame, QSizePolicy, QMessageBox
+    QFrame, QSizePolicy, QMessageBox, QDialog, QComboBox
 )
 from PySide6.QtCore import Qt, QTimer
 from card_dialog import AddCardDialog
 from consql import DatabaseConnector
-from PySide6.QtWidgets import QDialog
 from MarqueeLabel import MarqueeLabel
 
 class SummaryCard(QFrame):
@@ -33,12 +32,11 @@ class MonthSummaryWidget(QWidget):
         top_layout.setSpacing(10)
         top_layout.setContentsMargins(0, 0, 0, 0)
 
-        lbl_month = QLabel(month_label)
+        lbl_month = QLabel(f"{month_label} Summary")
         lbl_month.setStyleSheet("font-size: 20px; color: #36d1c4; font-weight: bold;")
         lbl_month.setAlignment(Qt.AlignmentFlag.AlignLeft)
         top_layout.addWidget(lbl_month)
 
-        # Balance card at the top
         self.balance_widget = QFrame()
         self.balance_widget.setStyleSheet("""
             QFrame {
@@ -57,7 +55,6 @@ class MonthSummaryWidget(QWidget):
         balance_layout.addWidget(lbl_balance_amount)
         top_layout.addWidget(self.balance_widget)
 
-        # 3 cards row (Income, Expense, Other)
         row_widget = QWidget()
         row_layout = QHBoxLayout(row_widget)
         row_layout.setSpacing(12)
@@ -97,7 +94,7 @@ class Work(QMainWindow):
         super().__init__()
         self.user_id = user_id
         self.setWindowTitle("Money Manager")
-        self.resize(380, 700)
+        self.resize(420, 750)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -105,12 +102,19 @@ class Work(QMainWindow):
         self.outer_layout.setContentsMargins(0, 0, 0, 0)
         self.outer_layout.setSpacing(0)
 
+        # Month Selector ComboBox
+        self.month_combo = QComboBox()
+        self.month_combo.setStyleSheet("font-size: 16px; margin: 8px;")
+        self.month_combo.currentTextChanged.connect(self.on_month_changed)
+        self.outer_layout.addWidget(self.month_combo, 0)
+
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(16, 16, 16, 16)
         self.content_layout.setSpacing(10)
         self.outer_layout.addWidget(self.content_widget, 1)
 
+        # Navigation bar
         self.nav_bar = QHBoxLayout()
         self.nav_bar.setSpacing(10)
         self.nav_bar.setContentsMargins(0, 10, 0, 10)
@@ -193,9 +197,121 @@ class Work(QMainWindow):
         self.outer_layout.addWidget(nav_bar_widget, 0)
 
         self.home_widgets = []
-        self.home_cards = []
+        self.available_months = []
+        self.load_months()
+        self.show_home(self.get_selected_month())
 
-        self.show_home()
+    def load_months(self):
+        db = DatabaseConnector()
+        try:
+            db.cursor.execute(
+                "SELECT DISTINCT DATE_FORMAT(dates, '%Y-%m') as month "
+                "FROM ngay WHERE user_id = %s ORDER BY month DESC",
+                (self.user_id,)
+            )
+            months = [row[0] for row in db.cursor.fetchall()]
+        finally:
+            db.close()
+        self.month_combo.clear()
+        self.month_combo.addItems(months)
+        self.available_months = months
+        if months:
+            self.month_combo.setCurrentIndex(0)
+
+    def get_selected_month(self):
+        if self.month_combo.count() == 0:
+            return None
+        return self.month_combo.currentText()
+
+    def on_month_changed(self, month):
+        self.show_home(month)
+
+    def show_home(self, selected_month=None):
+        self.clear_content()
+        self.home_widgets = []
+
+        if not selected_month:
+            selected_month = self.get_selected_month()
+        if not selected_month:
+            label = QLabel("No data for any month.")
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            label.setStyleSheet("font-size: 18px; color: #36d1c4;")
+            self.content_layout.addWidget(label)
+            return
+
+        card_totals = self.get_month_summary(selected_month)
+        all_info = self.get_all_info_for_month(selected_month)
+        print("DEBUG: Cards for", selected_month, ":", all_info)  # Debug print
+        month_widget = MonthSummaryWidget(selected_month, card_totals)
+        self.content_layout.addWidget(month_widget)
+        self.home_widgets.append(month_widget)
+
+        # Entries as interactive cards
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        summary_scroll_content = QWidget()
+        summary_scroll_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        summary_container = QVBoxLayout(summary_scroll_content)
+        summary_container.setSpacing(12)
+        summary_container.setAlignment(Qt.AlignmentFlag.AlignTop)
+        scroll_area.setWidget(summary_scroll_content)
+        self.content_layout.addWidget(scroll_area, 1)
+        self.home_widgets.append(scroll_area)
+
+        color_map = {
+            "Income": "#64b6f7",
+            "Expense": "#f66d6d",
+            "Other": "#f2c94c",
+        }
+        for row in all_info:
+            title = row[2] if len(row) > 2 else ""
+            money = row[4] if len(row) > 4 else 0
+            date_str = row[3] if len(row) > 3 else ""
+            card_type = row[5] if len(row) > 5 else ""
+            color = color_map.get(card_type, "#36d1c4")
+            btn = SummaryCardButton(f"{title} ({date_str})", f"{float(money):,.0f} VND", color)
+            btn.clicked.connect(lambda checked, t=title: self.show_message(f"{t} card clicked!"))
+            scroll_width = scroll_area.viewport().width()
+            left_margin, _, right_margin, _ = self.content_layout.getContentsMargins()
+            card_width = max(scroll_width - left_margin - right_margin, 100)
+            btn.setFixedWidth(card_width)
+            summary_container.addWidget(btn)
+
+        QTimer.singleShot(0, self.resize_all_cards)
+
+    def get_month_summary(self, month):
+        totals = {'Income': 0, 'Expense': 0, 'Other': 0}
+        db = DatabaseConnector()
+        try:
+            sql = (
+                "SELECT `type`, SUM(money) FROM ngay "
+                "WHERE user_id = %s AND DATE_FORMAT(dates, '%Y-%m') = %s "
+                "GROUP BY `type`"
+            )
+            db.cursor.execute(sql, (self.user_id, month))
+            rows = db.cursor.fetchall()
+            print("DEBUG: Summary for", month, ":", rows)  # Debug print
+        finally:
+            db.close()
+        for typ, total in rows:
+            totals[typ] = float(total)
+        totals['balance'] = totals['Income'] + totals['Other'] - totals['Expense']
+        return totals
+
+    def get_all_info_for_month(self, month):
+        db = DatabaseConnector()
+        try:
+            sql = (
+                "SELECT * FROM ngay "
+                "WHERE user_id = %s AND DATE_FORMAT(dates, '%Y-%m') = %s "
+                "ORDER BY dates DESC, id DESC"
+            )
+            db.cursor.execute(sql, (self.user_id, month))
+            rows = db.cursor.fetchall()
+        finally:
+            db.close()
+        return rows
 
     def clear_content(self):
         while self.content_layout.count():
@@ -213,88 +329,6 @@ class Work(QMainWindow):
                         child.widget().deleteLater()
                 del layout
 
-    def get_monthly_summary(self):
-        db = DatabaseConnector()
-        monthly = {}
-        try:
-            # Use concatenated string, not triple quotes (avoid indentation/space issues)
-            sql = (
-                "SELECT DATE_FORMAT(dates, '%Y-%m') AS year_month, type, SUM(money) "
-                "FROM ngay "
-                "WHERE user_id = %s "
-                "GROUP BY DATE_FORMAT(dates, '%Y-%m'), type "
-                "ORDER BY DATE_FORMAT(dates, '%Y-%m') DESC"
-            )
-            db.cursor.execute(sql, (self.user_id,))
-            rows = db.cursor.fetchall()
-        finally:
-            db.close()
-
-        for ym, typ, total in rows:
-            if ym not in monthly:
-                monthly[ym] = {'Income': 0, 'Expense': 0, 'Other': 0}
-            monthly[ym][typ] = total
-
-        for ym, vals in monthly.items():
-            balance = vals.get('Income', 0) + vals.get('Other', 0) - vals.get('Expense', 0)
-            vals['balance'] = balance
-
-        return monthly
-
-    def show_home(self):
-        self.clear_content()
-        self.home_widgets = []
-
-        # Get monthly card values from SQL
-        monthly = self.get_monthly_summary()
-        for ym, card_totals in monthly.items():
-            month_label = ym
-            month_widget = MonthSummaryWidget(month_label, card_totals)
-            self.content_layout.addWidget(month_widget)
-            self.home_widgets.append(month_widget)
-
-            # Transactions for this month
-            scroll_area = QScrollArea()
-            scroll_area.setWidgetResizable(True)
-            scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            summary_scroll_content = QWidget()
-            summary_scroll_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-            summary_container = QVBoxLayout(summary_scroll_content)
-            summary_container.setSpacing(12)
-            summary_container.setAlignment(Qt.AlignmentFlag.AlignTop)
-            scroll_area.setWidget(summary_scroll_content)
-            self.content_layout.addWidget(scroll_area, 1)
-            self.home_widgets.append(scroll_area)
-
-            db = DatabaseConnector()
-            try:
-                sql = (
-                    "SELECT title, money, dates, type FROM ngay "
-                    "WHERE user_id = %s AND DATE_FORMAT(dates, '%Y-%m') = %s "
-                    "ORDER BY dates DESC, id DESC"
-                )
-                db.cursor.execute(sql, (self.user_id, ym))
-                cards = db.cursor.fetchall()
-            finally:
-                db.close()
-
-            color_map = {
-                "Income": "#64b6f7",
-                "Expense": "#f66d6d",
-                "Other": "#f2c94c",
-            }
-            for title, money, date_str, card_type in cards:
-                color = color_map.get(card_type, "#36d1c4")
-                btn = SummaryCardButton(f"{title} ({date_str})", f"{money:,.0f} VND", color)
-                btn.clicked.connect(lambda checked, t=title: self.show_message(f"{t} card clicked!"))
-                scroll_width = scroll_area.viewport().width()
-                left_margin, _, right_margin, _ = self.content_layout.getContentsMargins()
-                card_width = max(scroll_width - left_margin - right_margin, 100)
-                btn.setFixedWidth(card_width)
-                summary_container.addWidget(btn)
-
-        QTimer.singleShot(0, self.resize_all_cards)
-
     def add_summary_card(self):
         dialog = AddCardDialog(self)
         if dialog.exec() == QDialog.Accepted:
@@ -305,17 +339,10 @@ class Work(QMainWindow):
                 QMessageBox.warning(self, "Input Error", "Amount must be a number.")
                 return
 
-            color_map = {
-                "Income": "#64b6f7",
-                "Expense": "#f66d6d",
-                "Other": "#f2c94c",
-            }
-            color = color_map.get(card_type, "#36d1c4")
-
             db = DatabaseConnector()
             try:
                 db.cursor.execute(
-                    "INSERT INTO ngay (user_id, title, dates, money, type) VALUES (%s, %s, %s, %s, %s)",
+                    "INSERT INTO ngay (user_id, title, dates, money, `type`) VALUES (%s, %s, %s, %s, %s)",
                     (self.user_id, title, date_str, float_amount, card_type)
                 )
                 db.conn.commit()
@@ -325,8 +352,10 @@ class Work(QMainWindow):
                 return
             db.close()
 
-            # Refresh the home screen to update totals and cards
-            self.show_home()
+            self.load_months()
+            if date_str[:7] in self.available_months:
+                self.month_combo.setCurrentText(date_str[:7])
+            self.show_home(self.get_selected_month())
 
     def on_home_clicked(self):
         self.show_home()
@@ -362,7 +391,6 @@ class Work(QMainWindow):
         super().resizeEvent(event)
 
     def resize_all_cards(self):
-        # This will resize all SummaryCardButton widgets in all summary_containers
         for i in range(self.content_layout.count()):
             widget = self.content_layout.itemAt(i).widget()
             if isinstance(widget, QScrollArea):
