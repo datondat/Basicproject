@@ -241,7 +241,6 @@ class Work(QMainWindow):
 
         card_totals = self.get_month_summary(selected_month)
         all_info = self.get_all_info_for_month(selected_month)
-        print("DEBUG: Cards for", selected_month, ":", all_info)  # Debug print
         month_widget = MonthSummaryWidget(selected_month, card_totals)
         self.content_layout.addWidget(month_widget)
         self.home_widgets.append(month_widget)
