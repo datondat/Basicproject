@@ -2,6 +2,8 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel, QPushButton,
     QFrame, QSizePolicy, QMessageBox, QDialog, QComboBox
 )
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+import matplotlib.pyplot as plt
 from PySide6.QtCore import Qt, QTimer
 from card_dialog import AddCardDialog
 from consql import DatabaseConnector
@@ -281,6 +283,7 @@ class Work(QMainWindow):
 
     def get_month_summary(self, month):
         totals = {'Income': 0, 'Expense': 0, 'Other': 0}
+        rows = []  # Ensure 'rows' is defined even if the SQL fails
         db = DatabaseConnector()
         try:
             sql = (
@@ -290,13 +293,41 @@ class Work(QMainWindow):
             )
             db.cursor.execute(sql, (self.user_id, month))
             rows = db.cursor.fetchall()
-            print("DEBUG: Summary for", month, ":", rows)  # Debug print
+            print("DEBUG: Summary for", month, ":", rows)
         finally:
             db.close()
         for typ, total in rows:
             totals[typ] = float(total)
         totals['balance'] = totals['Income'] + totals['Other'] - totals['Expense']
         return totals
+
+    def add_summary_card(self):
+        dialog = AddCardDialog(self)
+        if dialog.exec() == QDialog.Accepted:
+            title, amount, card_type, date_str = dialog.get_values()
+            try:
+                float_amount = float(amount.replace(",", "").replace("$", ""))
+            except ValueError:
+                QMessageBox.warning(self, "Input Error", "Amount must be a number.")
+                return
+
+            db = DatabaseConnector()
+            try:
+                db.cursor.execute(
+                    "INSERT INTO ngay (user_id, title, dates, money, `type`) VALUES (%s, %s, %s, %s, %s)",
+                    (self.user_id, title, date_str, float_amount, card_type)
+                )
+                db.conn.commit()
+            except Exception as e:
+                QMessageBox.critical(self, "Database Error", f"Could not save card: {e}")
+                return
+            finally:
+                db.close()
+
+            self.load_months()
+            if date_str[:7] in self.available_months:
+                self.month_combo.setCurrentText(date_str[:7])
+            self.show_home(self.get_selected_month())
 
     def get_all_info_for_month(self, month):
         db = DatabaseConnector()
@@ -361,7 +392,22 @@ class Work(QMainWindow):
 
     def on_stats_clicked(self):
         self.clear_content()
-        self.show_section_label("Stats")
+        # Get selected month's summary
+        selected_month = self.get_selected_month()
+        if not selected_month:
+            label = QLabel("No data for any month.")
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            label.setStyleSheet("font-size: 18px; color: #36d1c4;")
+            self.content_layout.addWidget(label)
+            return
+
+        card_totals = self.get_month_summary(selected_month)
+        pie = ReportPieWidget(
+            card_totals.get('Income', 0),
+            card_totals.get('Expense', 0),
+            card_totals.get('Other', 0)
+        )
+        self.content_layout.addWidget(pie)
 
     def on_graph_clicked(self):
         self.clear_content()
@@ -403,3 +449,29 @@ class Work(QMainWindow):
                         w = layout.itemAt(j).widget()
                         if isinstance(w, SummaryCardButton):
                             w.setFixedWidth(card_width)
+class ReportPieWidget(QWidget):
+    def __init__(self, income, expense, other, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        self.canvas = FigureCanvas(plt.Figure(figsize=(4, 4)))
+        layout.addWidget(self.canvas)
+        self.ax = self.canvas.figure.subplots()
+        self.draw_pie(income, expense, other)
+
+    def draw_pie(self, income, expense, other):
+        self.ax.clear()
+        labels = ['Income', 'Expense', 'Other']
+        sizes = [income, expense, other]
+        colors = ['#64b6f7', '#f66d6d', '#f2c94c']
+        explode = [0.05 if size > 0 else 0 for size in sizes]
+        filtered = [(l, s, c, e) for l, s, c, e in zip(labels, sizes, colors, explode) if s > 0]
+        if filtered:
+            labels, sizes, colors, explode = zip(*filtered)
+            self.ax.pie(
+                sizes, labels=labels, colors=colors, explode=explode,
+                autopct='%1.1f%%', startangle=90, counterclock=False
+            )
+        else:
+            self.ax.text(0.5, 0.5, "No data", ha='center', va='center', fontsize=16)
+        self.ax.set_title("Income vs Expense vs Other")
+        self.canvas.draw()
