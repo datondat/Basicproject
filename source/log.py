@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt
 from regist import RegisterForm
 from consql import DatabaseConnector
 from work import Work
+from forgot_password import ForgotPasswordWindow
 
 class Log_in(QMainWindow):
     def __init__(self):
@@ -52,6 +53,7 @@ class Log_in(QMainWindow):
         self.forgot_btn.setFlat(True)
         self.forgot_btn.setStyleSheet("QPushButton { color: #007bff; text-decoration: underline; border: none; background: none; }")
         self.forgot_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.forgot_btn.clicked.connect(self.open_forgot_password)
         forgot_layout.addWidget(self.forgot_btn)
         forgot_layout.addStretch()
         layout.addLayout(forgot_layout)
@@ -81,7 +83,9 @@ class Log_in(QMainWindow):
             self.regist_window.signup_clicked.connect(self.open_register_form)
             self.regist_window.show()
             self.hide()
-
+    def open_forgot_password(self):
+        self.forgot_form=ForgotPasswordWindow()
+        self.forgot_form.show()
     def open_register_form(self):
         self.register_form = RegisterForm()
         self.register_form.show()
