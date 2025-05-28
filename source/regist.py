@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt,Signal
 from work import Work
+from email_bot import EmailBot
 from consql import DatabaseConnector
 
 class Register(QMainWindow):
@@ -100,7 +101,17 @@ class RegisterForm(QMainWindow):
         username = self.user.text()
         password = self.pwd.text()
         if DatabaseConnector().addus(fullname,mail,username,password):
+            bot = EmailBot(
+                smtp_server="smtp.gmail.com",
+                smtp_port=587,
+                bot_email="datnq.24ai@vku.udn.vn",
+                bot_password="Beo@12345"
+            )
+            subject = "Welcome to MyApp!"
+            message = f"Hello {fullname},\n\nYour registration was successful. Welcome to MyApp!"
+            bot.send(mail, subject, message)
             QMessageBox.information(self, "Sign in Successful", f"Welcome, {username}!")
+
     def working_frame(self):
         self.working_frame = Work()
         self.working_frame.show()
