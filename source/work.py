@@ -14,6 +14,7 @@ from card_dialog import AddCardDialog
 from consql import DatabaseConnector
 
 from summary_card import SummaryCard
+from edit_card_dialog import EditCardDialog
 from month_summary_widget import MonthSummaryWidget
 from summary_card_button import SummaryCardButton
 from report_pie_widget import ReportPieWidget
@@ -221,7 +222,14 @@ class Work(QMainWindow):
             card_type = row[5] if len(row) > 5 else ""
             color = color_map.get(card_type, "#36d1c4")
             btn = SummaryCardButton(f"{title} ({date_str})", f"{float(money):,.0f} VND", color)
-            btn.clicked.connect(lambda checked, t=title: self.show_message(f"{t} card clicked!"))
+            entry = {
+                'id': row[0],
+                'title': row[2],
+                'date': row[3],
+                'money': row[4],
+                'type': row[5]
+            }
+            btn.clicked.connect(lambda checked, e=entry: self.edit_entry_dialog(e, selected_month))
             scroll_width = scroll_area.viewport().width()
             left_margin, _, right_margin, _ = self.content_layout.getContentsMargins()
             card_width = max(scroll_width - left_margin - right_margin, 100)
@@ -559,3 +567,22 @@ class Work(QMainWindow):
                         w = layout.itemAt(j).widget()
                         if isinstance(w, SummaryCardButton):
                             w.setFixedWidth(card_width)
+
+    def edit_entry_dialog(self, entry, selected_month):
+        dialog = EditCardDialog(entry, self)
+        if dialog.exec() == QDialog.Accepted:
+            updated = dialog.get_values()
+            try:
+                db = DatabaseConnector()
+                db.cursor.execute(
+                    "UPDATE ngay SET title=%s, dates=%s, money=%s, type=%s WHERE id=%s AND user_id=%s",
+                    (updated['title'], updated['date'], float(updated['money']), updated['type'], updated['id'],
+                     self.user_id)
+                )
+                db.conn.commit()
+            except Exception as e:
+                QMessageBox.critical(self, "Database Error", f"Could not update entry: {e}")
+            finally:
+                db.close()
+            # Refresh UI
+            self.show_home(selected_month)

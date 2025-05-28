@@ -3,9 +3,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QLabel, QWidget, QVBoxLayout,
     QLineEdit, QPushButton, QHBoxLayout, QCheckBox, QMessageBox
 )
-from regist import Register
 from PySide6.QtCore import Qt
-from regist import RegisterForm
 from consql import DatabaseConnector
 from work import Work
 from forgot_password import ForgotPasswordWindow
@@ -58,6 +56,17 @@ class Log_in(QMainWindow):
         forgot_layout.addStretch()
         layout.addLayout(forgot_layout)
 
+        register_layout = QHBoxLayout()
+        register_layout.addStretch()
+        self.register_btn = QPushButton("Register", self)
+        self.register_btn.setFlat(True)
+        self.register_btn.setStyleSheet("QPushButton { color: #28a745; text-decoration: underline; border: none; background: none; }")
+        self.register_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.register_btn.clicked.connect(self.open_register_form)
+        register_layout.addWidget(self.register_btn)
+        register_layout.addStretch()
+        layout.addLayout(register_layout)
+
         self.setCentralWidget(central_widget)
 
     def toggle_password_visibility(self, checked):
@@ -65,6 +74,7 @@ class Log_in(QMainWindow):
             self.password.setEchoMode(QLineEdit.EchoMode.Normal)
         else:
             self.password.setEchoMode(QLineEdit.EchoMode.Password)
+
     def handle_login(self):
         username = self.username.text()
         password = self.password.text()
@@ -74,21 +84,29 @@ class Log_in(QMainWindow):
             QMessageBox.information(self, "Login Successful", f"Welcome, {username}!")
             db = DatabaseConnector()
             user_id = db.get_user_id(username)
-            self.workingframe=Work(user_id)
+            self.workingframe = Work(user_id)
             self.workingframe.show()
             self.hide()
         else:
-            self.regist_window=Register()
-            self.regist_window.ok_clicked.connect(self.show)
-            self.regist_window.signup_clicked.connect(self.open_register_form)
-            self.regist_window.show()
-            self.hide()
+            QMessageBox.warning(self, "Login Failed", "Invalid username or password.")
+
     def open_forgot_password(self):
-        self.forgot_form=ForgotPasswordWindow()
+        self.forgot_form = ForgotPasswordWindow()
         self.forgot_form.show()
+
     def open_register_form(self):
+        # Delayed import to avoid circular import
+        from regist import RegisterForm
         self.register_form = RegisterForm()
+        self.register_form.registration_successful.connect(self.on_registration_successful)
         self.register_form.show()
+        self.hide()
+
+    def on_registration_successful(self):
+        # After registration, show login form again
+        self.show()
+        QMessageBox.information(self, "Registration Complete", "Registration successful! Please log in.")
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = Log_in()
