@@ -53,7 +53,6 @@ class ForgotPasswordWindow(QMainWindow):
 
         db = DatabaseConnector()
         try:
-            # Check if user exists and mail matches
             db.cursor.execute(
                 "SELECT * FROM users WHERE logname=%s AND mail=%s",
                 (logname, mail)
@@ -63,7 +62,6 @@ class ForgotPasswordWindow(QMainWindow):
                 QMessageBox.critical(self, "Error", "No user found with that username and email.")
                 return
 
-            # Update the password
             db.cursor.execute(
                 "UPDATE users SET pass=%s WHERE logname=%s AND mail=%s",
                 (new_pass, logname, mail)

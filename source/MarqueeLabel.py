@@ -12,7 +12,7 @@ class MarqueeLabel(QLabel):
         self._timer.start(speed)  # speed in ms per frame (higher = slower)
         self.setStyleSheet("color: #fff; font-size: 18px; font-weight: bold;")
         self._step = step
-        self.setText(text)  # needed to set font etc
+        self.setText(text)
 
     def setText(self, text):
         self._full_text = text
@@ -36,7 +36,7 @@ class MarqueeLabel(QLabel):
     def paintEvent(self, event):
         painter = QPainter(self)
         metrics = self.fontMetrics()
-        gap = "   "  # Space between loops
+        gap = "   "
         scroll_text = self._full_text + gap
         text_width = metrics.horizontalAdvance(scroll_text)
         x = -self._offset

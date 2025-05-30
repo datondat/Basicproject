@@ -584,5 +584,4 @@ class Work(QMainWindow):
                 QMessageBox.critical(self, "Database Error", f"Could not update entry: {e}")
             finally:
                 db.close()
-            # Refresh UI
             self.show_home(selected_month)

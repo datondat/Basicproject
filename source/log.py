@@ -95,7 +95,6 @@ class Log_in(QMainWindow):
         self.forgot_form.show()
 
     def open_register_form(self):
-        # Delayed import to avoid circular import
         from regist import RegisterForm
         self.register_form = RegisterForm()
         self.register_form.registration_successful.connect(self.on_registration_successful)
@@ -103,7 +102,6 @@ class Log_in(QMainWindow):
         self.hide()
 
     def on_registration_successful(self):
-        # After registration, show login form again
         self.show()
         QMessageBox.information(self, "Registration Complete", "Registration successful! Please log in.")
 

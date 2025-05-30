@@ -7,7 +7,7 @@ from email_bot import EmailBot
 from consql import DatabaseConnector
 
 class RegisterForm(QMainWindow):
-    registration_successful = Signal()  # Signal to notify when registration is successful
+    registration_successful = Signal()
 
     def __init__(self):
         super().__init__()
@@ -66,7 +66,7 @@ class RegisterForm(QMainWindow):
             message = f"Hello {fullname},\n\nYour registration was successful. Welcome to MyApp!"
             bot.send(mail, subject, message)
             QMessageBox.information(self, "Sign up Successful", f"Welcome, {username}!")
-            self.registration_successful.emit()  # Notify the login window
+            self.registration_successful.emit()
             self.close()
         else:
             QMessageBox.warning(self, "Sign up Failed", f"Registration failed. Try another username.")

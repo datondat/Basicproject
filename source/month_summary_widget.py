@@ -14,7 +14,7 @@ class MonthSummaryWidget(QWidget):
         lbl_month.setAlignment(Qt.AlignmentFlag.AlignLeft)
         top_layout.addWidget(lbl_month)
 
-        from PySide6.QtWidgets import QFrame  # Only used here
+        from PySide6.QtWidgets import QFrame
 
         self.balance_widget = QFrame()
         self.balance_widget.setStyleSheet("""

@@ -5,7 +5,7 @@ class EditCardDialog(QDialog):
     def __init__(self, entry, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Edit Entry")
-        self.entry = entry  # dict with keys: id, title, date, money, type
+        self.entry = entry
 
         layout = QVBoxLayout(self)
 
