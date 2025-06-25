@@ -9,7 +9,7 @@ class MarqueeLabel(QLabel):
         self._offset = 0
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._scroll_text)
-        self._timer.start(speed)  # speed in ms per frame (higher = slower)
+        self._timer.start(speed)
         self.setStyleSheet("color: #fff; font-size: 18px; font-weight: bold;")
         self._step = step
         self.setText(text)
