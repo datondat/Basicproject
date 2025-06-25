@@ -1,3 +1,4 @@
+
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     fullname VARCHAR(50) NOT NULL,
@@ -22,33 +23,67 @@ CREATE TABLE user_totals (
     total_money DECIMAL(15,2) NOT NULL DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+
 DELIMITER $$
+
+DROP TRIGGER IF EXISTS tg_ngay_after_insert $$
 CREATE TRIGGER tg_ngay_after_insert
 AFTER INSERT ON ngay
 FOR EACH ROW
 BEGIN
   INSERT INTO user_totals (user_id, total_money)
-    VALUES (NEW.user_id, NEW.money)
-    ON DUPLICATE KEY UPDATE total_money = total_money + NEW.money;
+    VALUES (
+      NEW.user_id,
+      CASE
+        WHEN NEW.type = 'Expense' THEN -NEW.money
+        ELSE NEW.money
+      END
+    )
+    ON DUPLICATE KEY UPDATE total_money = total_money +
+      CASE
+        WHEN NEW.type = 'Expense' THEN -NEW.money
+        ELSE NEW.money
+      END;
 END$$
-DELIMITER ;
-DELIMITER $$
+
+DROP TRIGGER IF EXISTS tg_ngay_after_update $$
 CREATE TRIGGER tg_ngay_after_update
 AFTER UPDATE ON ngay
 FOR EACH ROW
 BEGIN
   UPDATE user_totals
-    SET total_money = total_money - OLD.money + NEW.money
+    SET total_money =
+      total_money
+      - (CASE WHEN OLD.type = 'Expense' THEN -OLD.money ELSE OLD.money END)
+      + (CASE WHEN NEW.type = 'Expense' THEN -NEW.money ELSE NEW.money END)
     WHERE user_id = NEW.user_id;
 END$$
-DELIMITER ;
-DELIMITER $$
+
+DROP TRIGGER IF EXISTS tg_ngay_after_delete $$
 CREATE TRIGGER tg_ngay_after_delete
 AFTER DELETE ON ngay
 FOR EACH ROW
 BEGIN
   UPDATE user_totals
-    SET total_money = total_money - OLD.money
+    SET total_money = total_money -
+      (CASE WHEN OLD.type = 'Expense' THEN -OLD.money ELSE OLD.money END)
     WHERE user_id = OLD.user_id;
 END$$
+
 DELIMITER ;
+
+
+TRUNCATE TABLE user_totals;
+
+INSERT INTO user_totals (user_id, total_money)
+SELECT
+    user_id,
+    SUM(
+        CASE
+            WHEN type = 'Expense' THEN -money
+            ELSE money
+        END
+    ) as total_money
+FROM ngay
+GROUP BY user_id;
